@@ -100,20 +100,20 @@ http.createServer(async (req, res) => {
   // ── GET /positions — posições abertas ─────────────────────
   if (method === 'GET' && url === '/positions') {
     const r = await supa('GET', 'positions?order=created_at.asc');
-    return sendJSON(res, 200, r.body || []);
+    return sendJSON(res, 200, Array.isArray(r.body) ? r.body : []);
   }
 
   // ── GET /trades — histórico de operações ──────────────────
   if (method === 'GET' && url.startsWith('/trades')) {
     const qs  = url.includes('?') ? url.split('?')[1] : '';
     const r   = await supa('GET', 'trades?' + qs + '&order=date.desc');
-    return sendJSON(res, 200, r.body || []);
+    return sendJSON(res, 200, Array.isArray(r.body) ? r.body : []);
   }
 
   // ── GET /pnl — P&L consolidado por mês ────────────────────
   if (method === 'GET' && url === '/pnl') {
     const r = await supa('GET', 'trades?select=date,pnl,ticker&order=date.asc');
-    const trades = r.body || [];
+    const trades = Array.isArray(r.body) ? r.body : [];
     const byMonth = {};
     let total = 0;
     trades.forEach(t => {
@@ -139,8 +139,8 @@ http.createServer(async (req, res) => {
       supa('GET', 'positions?order=created_at.asc'),
       supa('GET', 'trades?select=date,pnl,ticker&order=date.asc'),
     ]);
-    const positions = posR.body || [];
-    const trades    = tradeR.body || [];
+    const positions = Array.isArray(posR.body)   ? posR.body   : [];
+    const trades    = Array.isArray(tradeR.body)  ? tradeR.body : [];
     const byMonth = {};
     let total = 0;
     trades.forEach(t => {
