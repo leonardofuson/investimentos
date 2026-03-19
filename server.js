@@ -109,6 +109,41 @@ http.createServer(async (req, res) => {
   if (method === 'GET' && url === '/health')
     return sendJSON(res, 200, { status:'ok', ts: new Date().toISOString() });
 
+  // ── GET /cashflow — aportes e saques ──────────────────────
+  if (method === 'GET' && url === '/cashflow') {
+    const r = await supa('GET', 'cashflow?order=date.asc');
+    const rows = Array.isArray(r.body) ? r.body : [];
+    // Calcula capital líquido: soma aportes BRL - saques BRL - saques USD (convertido na hora da consulta)
+    // O frontend converte USD pelo câmbio do dia — retornamos os totais separados
+    const totalAporteBRL = rows.filter(r=>r.type==='aporte'&&r.valor_brl).reduce((s,r)=>s+parseFloat(r.valor_brl||0),0);
+    const totalAporteUSD = rows.filter(r=>r.type==='aporte'&&r.valor_usd).reduce((s,r)=>s+parseFloat(r.valor_usd||0),0);
+    const totalSaqueBRL  = rows.filter(r=>r.type==='saque' &&r.valor_brl).reduce((s,r)=>s+parseFloat(r.valor_brl||0),0);
+    const totalSaqueUSD  = rows.filter(r=>r.type==='saque' &&r.valor_usd).reduce((s,r)=>s+parseFloat(r.valor_usd||0),0);
+    return sendJSON(res, 200, {
+      rows,
+      totalAporteBRL: Math.round(totalAporteBRL * 100) / 100,
+      totalAporteUSD: Math.round(totalAporteUSD * 10000) / 10000,
+      totalSaqueBRL:  Math.round(totalSaqueBRL  * 100) / 100,
+      totalSaqueUSD:  Math.round(totalSaqueUSD  * 10000) / 10000,
+    });
+  }
+
+  // ── POST /cashflow — registra novo aporte ou saque ────────
+  if (method === 'POST' && url === '/cashflow') {
+    if (!auth(req,res)) return;
+    const b = await readBody(req);
+    const { date, type, valor_brl, valor_usd, corretora, descricao } = b;
+    if (!date || !type) return sendJSON(res, 400, { error:'date e type obrigatórios' });
+    const r = await supa('POST', 'cashflow', {
+      date, type,
+      valor_brl: valor_brl ? parseFloat(valor_brl) : null,
+      valor_usd: valor_usd ? parseFloat(valor_usd) : null,
+      corretora: corretora || null,
+      descricao: descricao || null,
+    });
+    return sendJSON(res, 200, r.body);
+  }
+
   // ── GET /positions — posições abertas ─────────────────────
   if (method === 'GET' && url === '/positions') {
     const r = await supa('GET', 'positions?order=created_at.asc');
