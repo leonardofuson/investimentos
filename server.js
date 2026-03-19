@@ -20,7 +20,9 @@ function supa(method, path, body) {
         'apikey':        SUPA_KEY,
         'Authorization': 'Bearer ' + SUPA_KEY,
         'Content-Type':  'application/json',
-        'Prefer':        method === 'POST' ? 'return=representation' : 'return=minimal',
+        // Prefer: return=representation só em POST/PATCH para retornar dados inseridos
+        // Em GET não deve ser enviado — return=minimal impede o Supabase de retornar rows
+        ...(method === 'POST' || method === 'PATCH' ? { 'Prefer': 'return=representation' } : {}),
       }
     };
     if (data) opts.headers['Content-Length'] = Buffer.byteLength(data);
@@ -118,16 +120,19 @@ http.createServer(async (req, res) => {
     let total = 0;
     trades.forEach(t => {
       const mk = monthKey(t.date);
-      if (!byMonth[mk]) byMonth[mk] = { realized:0, trades:[] };
-      byMonth[mk].realized = Math.round((byMonth[mk].realized + (t.pnl||0))*100)/100;
-      byMonth[mk].trades.push(t);
-      total = Math.round((total + (t.pnl||0))*100)/100;
+      const pnl = parseFloat(t.pnl) || 0;  // garante número mesmo se vier como string
+      if (!byMonth[mk]) byMonth[mk] = { realized: 0 };
+      byMonth[mk].realized = Math.round((byMonth[mk].realized + pnl) * 100) / 100;
+      total = Math.round((total + pnl) * 100) / 100;
     });
-    const now = monthKey();
+    // Usa o mês mais recente dos dados (não do servidor — evita timezone bug)
+    const months = Object.keys(byMonth).sort();
+    const latestMonth = months[months.length - 1] || monthKey();
     return sendJSON(res, 200, {
-      currentMonth:    now,
-      currentMonthPnl: byMonth[now]?.realized || 0,
+      currentMonth:    latestMonth,
+      currentMonthPnl: byMonth[latestMonth]?.realized || 0,
       totalHistorical: total,
+      tradesCount:     trades.length,  // debug: confirma quantos trades foram lidos
       pnlBRL:          { realized: 563.83 },
       history:         byMonth,
     });
@@ -145,18 +150,18 @@ http.createServer(async (req, res) => {
     let total = 0;
     trades.forEach(t => {
       const mk = monthKey(t.date);
-      if (!byMonth[mk]) byMonth[mk] = { realized:0, trades:[] };
+      if (!byMonth[mk]) byMonth[mk] = { realized:0 };
       byMonth[mk].realized = Math.round((byMonth[mk].realized + (t.pnl||0))*100)/100;
-      byMonth[mk].trades.push(t);
       total = Math.round((total + (t.pnl||0))*100)/100;
     });
-    const now = monthKey();
+    const months = Object.keys(byMonth).sort();
+    const latestMonth = months[months.length - 1] || monthKey();
     return sendJSON(res, 200, {
       positions,
       pnlHistory:      byMonth,
       pnlBRL:          { realized: 563.83 },
-      currentMonth:    now,
-      currentMonthPnl: byMonth[now]?.realized || 0,
+      currentMonth:    latestMonth,
+      currentMonthPnl: byMonth[latestMonth]?.realized || 0,
       totalHistorical: total,
     });
   }
