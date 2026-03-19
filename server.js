@@ -12,26 +12,36 @@ function supa(method, path, body) {
   return new Promise((resolve, reject) => {
     const url  = new URL(SUPA_URL + '/rest/v1/' + path);
     const data = body ? JSON.stringify(body) : null;
+    const headers = {
+      'apikey':        SUPA_KEY,
+      'Authorization': 'Bearer ' + SUPA_KEY,
+      'Content-Type':  'application/json',
+      'Accept':        'application/json',
+    };
+    if (method === 'POST' || method === 'PATCH') {
+      headers['Prefer'] = 'return=representation';
+    }
+    if (data) headers['Content-Length'] = Buffer.byteLength(data);
+
     const opts = {
       hostname: url.hostname,
       path:     url.pathname + url.search,
       method,
-      headers: {
-        'apikey':        SUPA_KEY,
-        'Authorization': 'Bearer ' + SUPA_KEY,
-        'Content-Type':  'application/json',
-        // Prefer: return=representation só em POST/PATCH para retornar dados inseridos
-        // Em GET não deve ser enviado — return=minimal impede o Supabase de retornar rows
-        ...(method === 'POST' || method === 'PATCH' ? { 'Prefer': 'return=representation' } : {}),
-      }
+      headers,
     };
-    if (data) opts.headers['Content-Length'] = Buffer.byteLength(data);
+
     const req = https.request(opts, res => {
-      let buf = '';
-      res.on('data', c => buf += c);
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
       res.on('end', () => {
-        try { resolve({ status: res.statusCode, body: buf ? JSON.parse(buf) : null }); }
-        catch(e) { resolve({ status: res.statusCode, body: buf }); }
+        const raw = Buffer.concat(chunks).toString('utf8');
+        let parsed = null;
+        try {
+          parsed = raw ? JSON.parse(raw) : null;
+        } catch(e) {
+          parsed = raw || null;
+        }
+        resolve({ status: res.statusCode, body: parsed });
       });
     });
     req.on('error', reject);
@@ -115,8 +125,9 @@ http.createServer(async (req, res) => {
   // ── GET /pnl — P&L consolidado por mês ────────────────────
   if (method === 'GET' && url === '/pnl') {
     const r = await supa('GET', 'trades?select=date,pnl,ticker&order=date.asc');
-    // Log diagnóstico — remover após confirmar
-    console.log('Supabase status:', r.status, '| body type:', typeof r.body, '| isArray:', Array.isArray(r.body), '| length:', Array.isArray(r.body) ? r.body.length : JSON.stringify(r.body)?.slice(0,100));
+    // Log diagnóstico completo
+    console.log('Supabase /trades status:', r.status);
+    console.log('Supabase /trades body:', JSON.stringify(r.body)?.slice(0, 300));
     const trades = Array.isArray(r.body) ? r.body : [];
     const byMonth = {};
     let total = 0;
