@@ -4,7 +4,7 @@ const https = require('https');
 const PORT     = process.env.PORT || 3000;
 const SECRET   = process.env.API_SECRET || 'leo2026';
 const SUPA_URL = process.env.SUPABASE_URL || 'https://nosrpbpcxnrxsdykhojp.supabase.co';
-const SUPA_KEY = process.env.SUPABASE_KEY || 'sb_publishable_95xuzHmQqbiqMZtiCS6wFw_lSHltHME';
+const SUPA_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5vc3JwYnBjeG5yeHNkeWtob2pwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Mzg4MTM3OCwiZXhwIjoyMDg5NDU3Mzc4fQ.jRd7ywLpU_CqEmBbVpOloB-9Da8cIBiPpZDMwycNjos';
 const FH_KEY   = 'd6s1n1pr01qpss2i1fm0d6s1n1pr01qpss2i1fmg';
 
 // ── Supabase REST helper ─────────────────────────────────────
@@ -115,6 +115,8 @@ http.createServer(async (req, res) => {
   // ── GET /pnl — P&L consolidado por mês ────────────────────
   if (method === 'GET' && url === '/pnl') {
     const r = await supa('GET', 'trades?select=date,pnl,ticker&order=date.asc');
+    // Log diagnóstico — remover após confirmar
+    console.log('Supabase status:', r.status, '| body type:', typeof r.body, '| isArray:', Array.isArray(r.body), '| length:', Array.isArray(r.body) ? r.body.length : JSON.stringify(r.body)?.slice(0,100));
     const trades = Array.isArray(r.body) ? r.body : [];
     const byMonth = {};
     let total = 0;
